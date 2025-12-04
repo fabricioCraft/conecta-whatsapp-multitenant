@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { loginAction } from './actions'
 import { Mail, Lock, LogIn } from 'lucide-react'
+import TextShimmerWave from '@/components/ui/text-shimmer-wave'
+import { toast } from 'sonner'
 
 export default function LoginPage() {
   const [error, setError] = useState<string>('')
@@ -11,12 +13,16 @@ export default function LoginPage() {
   async function handleSubmit(formData: FormData) {
     setIsLoading(true)
     setError('')
+    const toastId = toast.loading('Entrando...')
     
     const result = await loginAction(formData)
     
     if (result?.error) {
       setError(result.error)
       setIsLoading(false)
+      toast.error(result.error, { id: toastId })
+    } else {
+      toast.success('Login realizado', { id: toastId })
     }
   }
 
@@ -87,6 +93,11 @@ export default function LoginPage() {
                 </>
               )}
             </button>
+            {isLoading && (
+              <div className="mt-3 flex items-center justify-center">
+                <TextShimmerWave text="Validando suas credenciais..." className="text-gray-700" />
+              </div>
+            )}
           </form>
 
           <div className="mt-6 text-center">

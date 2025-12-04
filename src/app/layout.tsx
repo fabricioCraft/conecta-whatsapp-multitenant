@@ -1,5 +1,6 @@
 import './globals.css'
 import { Inter } from 'next/font/google'
+import ToastProvider from '@/components/ui/toast-provider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -16,7 +17,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body className={`${inter.className} bg-slate-50`}>{children}</body>
+      <body className={`${inter.className} bg-slate-50`}>
+        <ToastProvider />
+        {children}
+      </body>
     </html>
   )
 }

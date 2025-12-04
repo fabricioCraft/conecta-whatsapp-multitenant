@@ -4,9 +4,17 @@ import { useFormState, useFormStatus } from 'react-dom'
 type SignupState = { error?: string; success?: boolean } | null
 import { signupAction } from './actions'
 import { User, Building2, Mail, Lock, UserPlus } from 'lucide-react'
+import TextShimmerWave from '@/components/ui/text-shimmer-wave'
+import { toast } from 'sonner'
 
 export default function RegisterPage() {
   const [state, formAction] = useFormState<SignupState, FormData>(signupAction as any, { error: undefined, success: false })
+  if (state?.success) {
+    try { toast.success('Conta criada com sucesso') } catch {}
+  }
+  if (state?.error) {
+    try { toast.error(state.error) } catch {}
+  }
   function SubmitButton() {
     const { pending } = useFormStatus()
     return (
@@ -26,7 +34,16 @@ export default function RegisterPage() {
             Criar Conta
           </>
         )}
-      </button>
+       </button>
+    )
+  }
+  function PendingMessage() {
+    const { pending } = useFormStatus()
+    if (!pending) return null
+    return (
+      <div className="mt-3 flex items-center justify-center">
+        <TextShimmerWave text="Criando sua conta..." className="text-gray-700" />
+      </div>
     )
   }
   return (
@@ -114,6 +131,7 @@ export default function RegisterPage() {
             )}
 
             <SubmitButton />
+            <PendingMessage />
           </form>
 
           <div className="mt-6 text-center">
