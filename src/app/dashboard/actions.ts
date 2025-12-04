@@ -125,3 +125,131 @@ export async function updateInstanceAction(prevState: UpdateInstanceState, formD
   revalidatePath('/dashboard')
   return { success: true, message: 'Webhook atualizado com sucesso!' }
 }
+
+type ConnectQrState = { success?: boolean; error?: string; qrCode?: string } | null
+
+export async function connectAndGetQrAction(prevState: ConnectQrState, formData?: FormData): Promise<ConnectQrState> {
+  const fd = (formData ?? (prevState as unknown as FormData)) as FormData
+  const instanceId = String(fd.get('instanceId') ?? '').trim()
+  if (!instanceId) {
+    return { success: false, error: 'Instância inválida' }
+  }
+
+  const supabase = createClient()
+  const { data: tokenRes, error: tokenError } = await supabase
+    .from('instances')
+    .select('token')
+    .eq('id', instanceId)
+    .single()
+
+  if (tokenError || !tokenRes?.token) {
+    return { success: false, error: 'Token não encontrado para esta instância' }
+  }
+
+  const token = String(tokenRes.token)
+
+  try {
+    await fetch('https://manager.dinastiapi.evolutta.com.br/session/connect', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'token': token,
+      },
+      body: JSON.stringify({ Subscribe: ['Message'], Immediate: true }),
+    })
+  } catch (e: any) {
+    return { success: false, error: e?.message ?? 'Falha ao iniciar sessão' }
+  }
+
+  async function getQr(): Promise<string | undefined> {
+    const resp = await fetch('https://manager.dinastiapi.evolutta.com.br/session/qr', {
+      method: 'GET',
+      headers: {
+        'accept': 'application/json',
+        'token': token,
+      },
+    })
+    const json = await resp.json().catch(() => ({} as any))
+    const base64 = String(
+      json?.qrcode ??
+      json?.base64 ??
+      json?.qr ??
+      json?.qr_code ??
+      json?.qrCode ??
+      json?.QRCode ??
+      json?.image ??
+      json?.data?.qrcode ??
+      json?.data?.base64 ??
+      json?.data?.qr ??
+      json?.data?.qr_code ??
+      json?.data?.qrCode ??
+      json?.data?.QRCode ??
+      json?.data?.image ??
+      ''
+    ).trim()
+    return base64 || undefined
+  }
+
+  try {
+    const immediate = await getQr()
+    if (immediate) return { success: true, qrCode: immediate }
+    await new Promise((r) => setTimeout(r, 1500))
+    for (let i = 0; i < 15; i++) {
+      await new Promise((r) => setTimeout(r, 1000))
+      const b = await getQr()
+      if (b) return { success: true, qrCode: b }
+    }
+    return { success: false, error: 'QR Code não disponível' }
+  } catch (e: any) {
+    return { success: false, error: e?.message ?? 'Falha ao obter QR Code' }
+  }
+}
+
+export async function checkInstanceStatusAction(instanceId: string): Promise<{ success: boolean; status: 'connected' | 'disconnected' }> {
+  const supabase = createClient()
+  const { data: tokenRes, error: tokenError } = await supabase
+    .from('instances')
+    .select('token')
+    .eq('id', instanceId)
+    .single()
+
+  if (tokenError || !tokenRes?.token) {
+    await supabase.from('instances').update({ status: 'disconnected' }).eq('id', instanceId)
+    return { success: false, status: 'disconnected' }
+  }
+
+  const token = String(tokenRes.token)
+  let status: 'connected' | 'disconnected' = 'disconnected'
+
+  function truthy(v: any): boolean {
+    if (typeof v === 'boolean') return v
+    if (typeof v === 'number') return v > 0
+    if (typeof v === 'string') {
+      const s = v.toLowerCase().trim()
+      if (!s) return false
+      if (s === 'yes' || s === 'true' || s === 'connected' || s === 'online') return true
+      return false
+    }
+    return false
+  }
+
+  try {
+    const resp = await fetch('https://manager.dinastiapi.evolutta.com.br/session/status', {
+      method: 'GET',
+      headers: {
+        'accept': 'application/json',
+        'token': token,
+      },
+    })
+    const json = await resp.json().catch(() => ({} as any))
+    const cRaw = json?.data?.Connected ?? json?.Connected ?? json?.data?.connected ?? json?.connected ?? json?.data?.IsConnected ?? json?.IsConnected ?? json?.data?.status ?? json?.status
+    const lRaw = json?.data?.LoggedIn ?? json?.LoggedIn ?? json?.data?.loggedIn ?? json?.loggedIn ?? json?.data?.logged_in ?? json?.logged_in ?? json?.data?.authenticated ?? json?.authenticated
+    const connected = truthy(cRaw)
+    const loggedIn = truthy(lRaw)
+    status = connected && loggedIn ? 'connected' : 'disconnected'
+  } catch {
+    status = 'disconnected'
+  }
+  await supabase.from('instances').update({ status }).eq('id', instanceId)
+  return { success: true, status }
+}

@@ -1,11 +1,12 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { updateInstanceAction } from "@/app/dashboard/actions"
+import { useEffect, useMemo, useState } from "react"
+import { updateInstanceAction, checkInstanceStatusAction } from "@/app/dashboard/actions"
 import { Smartphone, User, Link as LinkIcon, Settings } from "lucide-react"
 import TextShimmerWave from "@/components/ui/text-shimmer-wave"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
+import ConnectInstanceModal from "@/components/dashboard/ConnectInstanceModal"
 
 type InstanceWithJoins = {
   id: string
@@ -23,8 +24,10 @@ type UpdateState = { error?: string; success?: boolean; message?: string } | nul
 
 export default function InstanceCard({ instance }: { instance: InstanceWithJoins }) {
   const [open, setOpen] = useState(false)
+  const [manageOpen, setManageOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
+  const [localStatus, setLocalStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking')
 
   const title = useMemo(() => {
     return (
@@ -33,8 +36,28 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
   }, [instance])
 
   const statusColor = useMemo(() => {
-    return instance.status === "connected" ? "bg-emerald-500" : "bg-yellow-400 animate-pulse"
-  }, [instance.status])
+    if (localStatus === "connected") return "bg-emerald-500"
+    if (localStatus === "checking") return "bg-yellow-400 animate-pulse"
+    return "bg-red-500"
+  }, [localStatus])
+
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      setLocalStatus('checking')
+      try {
+        const res = await checkInstanceStatusAction(instance.id)
+        if (!mounted) return
+        setLocalStatus(res.status === 'connected' ? 'connected' : 'disconnected')
+      } catch {
+        if (!mounted) return
+        setLocalStatus('disconnected')
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [instance.id])
 
   const ownerName = useMemo(() => {
     return instance?.profiles?.full_name ?? "—"
@@ -63,7 +86,7 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
         </div>
         <div className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-slate-800 text-xs">
           <span className={`h-2 w-2 rounded-full ${statusColor}`}></span>
-          <span>{instance.status === "connected" ? "Conectado" : "Desconectado"}</span>
+          <span>{localStatus === "connected" ? "Online" : localStatus === "checking" ? "Verificando..." : "Offline"}</span>
         </div>
       </div>
 
@@ -82,7 +105,7 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
 
       <div className="mt-5 flex items-center justify-end gap-2">
         <button
-          onClick={() => console.log("Abrir QR Code")}
+          onClick={() => setManageOpen(true)}
           className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm"
         >
           Gerenciar
@@ -172,6 +195,10 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
             </div>
           </div>
         </div>
+      )}
+
+      {manageOpen && (
+        <ConnectInstanceModal instanceId={instance.id} onClose={() => setManageOpen(false)} />
       )}
     </div>
   )
