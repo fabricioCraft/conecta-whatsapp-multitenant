@@ -3,11 +3,21 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
+import { randomBytes } from 'node:crypto'
 
 type CreateInstanceState = { error?: string; success?: boolean; message?: string } | null
 
 export async function createInstanceAction(prevState: CreateInstanceState, formData?: FormData): Promise<CreateInstanceState> {
   const fd = (formData ?? (prevState as unknown as FormData)) as FormData
+  const csrfOk = (() => {
+    const c = cookies().get('csrf_token')?.value
+    const t = String(fd.get('csrfToken') ?? '')
+    return !!c && !!t && c === t
+  })()
+  if (!csrfOk) {
+    return { error: 'CSRF inválido', success: false }
+  }
   const instanceName = String(fd.get('instanceName') ?? '').trim()
   const token = String(fd.get('token') ?? '').trim()
   if (!instanceName) {
@@ -76,10 +86,42 @@ type UpdateInstanceState = { error?: string; success?: boolean; message?: string
 
 export async function updateInstanceAction(prevState: UpdateInstanceState, formData?: FormData): Promise<UpdateInstanceState> {
   const fd = (formData ?? (prevState as unknown as FormData)) as FormData
+  const csrfOk = (() => {
+    const c = cookies().get('csrf_token')?.value
+    const t = String(fd.get('csrfToken') ?? '')
+    return !!c && !!t && c === t
+  })()
+  if (!csrfOk) {
+    return { error: 'CSRF inválido', success: false }
+  }
   const instanceId = String(fd.get('instanceId') ?? '').trim()
   const webhookUrl = String(fd.get('webhookUrl') ?? '').trim()
   if (!instanceId || !webhookUrl) {
     return { error: 'Campos obrigatórios ausentes', success: false }
+  }
+
+  const safeWebhook = (() => {
+    try {
+      const u = new URL(webhookUrl)
+      if (u.protocol !== 'https:') return false
+      const h = u.hostname.toLowerCase()
+      if (h === 'localhost' || h.endsWith('.local') || h === '::1') return false
+      const ipv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(h)
+      if (ipv4) {
+        const p = h.split('.').map((n) => parseInt(n, 10))
+        if (p[0] === 10) return false
+        if (p[0] === 127) return false
+        if (p[0] === 169 && p[1] === 254) return false
+        if (p[0] === 172 && p[1] >= 16 && p[1] <= 31) return false
+        if (p[0] === 192 && p[1] === 168) return false
+      }
+      return true
+    } catch {
+      return false
+    }
+  })()
+  if (!safeWebhook) {
+    return { error: 'Webhook URL inválida ou não permitida', success: false }
   }
 
   const supabase = createClient()
@@ -130,6 +172,14 @@ type ConnectQrState = { success?: boolean; error?: string; qrCode?: string } | n
 
 export async function connectAndGetQrAction(prevState: ConnectQrState, formData?: FormData): Promise<ConnectQrState> {
   const fd = (formData ?? (prevState as unknown as FormData)) as FormData
+  const csrfOk = (() => {
+    const c = cookies().get('csrf_token')?.value
+    const t = String(fd.get('csrfToken') ?? '')
+    return !!c && !!t && c === t
+  })()
+  if (!csrfOk) {
+    return { success: false, error: 'CSRF inválido' }
+  }
   const instanceId = String(fd.get('instanceId') ?? '').trim()
   if (!instanceId) {
     return { success: false, error: 'Instância inválida' }
@@ -254,7 +304,11 @@ export async function checkInstanceStatusAction(instanceId: string): Promise<{ s
   return { success: true, status }
 }
 
-export async function disconnectInstanceAction(instanceId: string): Promise<{ success: boolean }> {
+export async function disconnectInstanceAction(instanceId: string, csrfToken?: string): Promise<{ success: boolean }> {
+  const c = cookies().get('csrf_token')?.value
+  if (!c || !csrfToken || c !== csrfToken) {
+    return { success: false }
+  }
   const supabase = createClient()
   const { data: tokenRes } = await supabase
     .from('instances')
@@ -273,7 +327,11 @@ export async function disconnectInstanceAction(instanceId: string): Promise<{ su
   return { success: true }
 }
 
-export async function deleteInstanceAction(instanceId: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteInstanceAction(instanceId: string, csrfToken?: string): Promise<{ success: boolean; error?: string }> {
+  const c = cookies().get('csrf_token')?.value
+  if (!c || !csrfToken || c !== csrfToken) {
+    return { success: false, error: 'CSRF inválido' }
+  }
   const supabase = createClient()
   const { data: inst, error: instError } = await supabase
     .from('instances')
@@ -286,7 +344,10 @@ export async function deleteInstanceAction(instanceId: string): Promise<{ succes
   }
 
   const externalId = String(inst.instance_id)
-  const adminKey = process.env.DINASTI_GLOBAL_KEY || 'QupjxzgQdjGsNDGxukFxUqLZ2jktoEwN'
+  const adminKey = process.env.DINASTI_GLOBAL_KEY
+  if (!adminKey) {
+    return { success: false, error: 'Chave administrativa ausente. Configure DINASTI_GLOBAL_KEY no .env.local' }
+  }
   const url = `https://manager.dinastiapi.evolutta.com.br/admin/users/${encodeURIComponent(externalId)}`
 
   try {
@@ -316,4 +377,14 @@ export async function deleteInstanceAction(instanceId: string): Promise<{ succes
   await supabase.from('instances').delete().eq('id', instanceId)
   revalidatePath('/dashboard')
   return { success: true }
+}
+
+export async function getCsrfTokenAction(): Promise<{ token: string }> {
+  const c = cookies()
+  let t = c.get('csrf_token')?.value
+  if (!t) {
+    t = randomBytes(32).toString('hex')
+    c.set('csrf_token', t, { httpOnly: true, sameSite: 'strict', secure: true, path: '/' })
+  }
+  return { token: t }
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { useFormState, useFormStatus } from "react-dom"
-import { updateInstanceAction, deleteInstanceAction } from "@/app/dashboard/actions"
+import { updateInstanceAction, deleteInstanceAction, getCsrfTokenAction } from "@/app/dashboard/actions"
 import { Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
@@ -34,6 +34,7 @@ export default function EditInstanceModal({ instance }: { instance: Instance }) 
   const [open, setOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [state, formAction] = useFormState<UpdateState, FormData>(updateInstanceAction as any, { success: false })
+  const [csrfToken, setCsrfToken] = useState("")
 
   useEffect(() => {
     if (state?.success) {
@@ -41,6 +42,15 @@ export default function EditInstanceModal({ instance }: { instance: Instance }) 
       try { alert("Webhook atualizado com sucesso") } catch {}
     }
   }, [state])
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const r = await getCsrfTokenAction()
+        setCsrfToken(r?.token || "")
+      } catch {}
+    })()
+  }, [])
 
   const maskedToken = (instance.token ?? "").toString()
 
@@ -68,6 +78,7 @@ export default function EditInstanceModal({ instance }: { instance: Instance }) 
                 <input type="hidden" name="instanceId" value={instance.id} />
                 <input type="hidden" name="dinastiInstanceName" value={instance.name} />
                 <input type="hidden" name="apiToken" value={instance.token ?? ""} />
+                <input type="hidden" name="csrfToken" value={csrfToken} />
 
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Nome da Instância</label>
@@ -121,7 +132,7 @@ export default function EditInstanceModal({ instance }: { instance: Instance }) 
                         const toastId = toast.loading('Excluindo instância...')
                         setDeleting(true)
                         try {
-                          const res = await deleteInstanceAction(instance.id)
+                          const res = await deleteInstanceAction(instance.id, csrfToken)
                           if (!res?.success) {
                             throw new Error(res?.error || 'Falha ao excluir instância na API')
                           }

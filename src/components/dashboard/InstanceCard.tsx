@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
-import { updateInstanceAction, checkInstanceStatusAction, deleteInstanceAction } from "@/app/dashboard/actions"
+import { updateInstanceAction, checkInstanceStatusAction, deleteInstanceAction, getCsrfTokenAction } from "@/app/dashboard/actions"
 import { Smartphone, User, Link as LinkIcon, Settings } from "lucide-react"
 import TextShimmerWave from "@/components/ui/text-shimmer-wave"
 import { Button } from "@/components/ui/button"
@@ -29,6 +29,7 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
   const [localStatus, setLocalStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking')
+  const [csrfToken, setCsrfToken] = useState<string>("")
 
   const title = useMemo(() => {
     return (
@@ -59,6 +60,15 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
       mounted = false
     }
   }, [instance.id])
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const r = await getCsrfTokenAction()
+        setCsrfToken(r?.token || "")
+      } catch {}
+    })()
+  }, [])
 
   useEffect(() => {
     const onModalOpen = (e: any) => {
@@ -163,6 +173,7 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
                     setError(undefined)
                     setIsLoading(true)
                     const fd = new FormData(e.currentTarget as HTMLFormElement)
+                    fd.append('csrfToken', csrfToken)
                     const toastId = toast.loading("Atualizando webhook...")
                     const res = await updateInstanceAction(undefined as any, fd)
                     if (res?.success) {
@@ -178,6 +189,7 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
                   }}
                 >
                   <input type="hidden" name="instanceId" value={instance.id} />
+                  <input type="hidden" name="csrfToken" value={csrfToken} />
 
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Nome da Instância</label>
@@ -234,7 +246,7 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
                           if (!ok) return
                         const toastId = toast.loading('Excluindo instância...')
                         try {
-                          const res = await deleteInstanceAction(instance.id)
+                          const res = await deleteInstanceAction(instance.id, csrfToken)
                           if (!res?.success) {
                             throw new Error(res?.error || 'Falha ao excluir instância na API')
                           }

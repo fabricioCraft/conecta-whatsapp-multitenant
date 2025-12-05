@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
-import { connectAndGetQrAction, disconnectInstanceAction } from "@/app/dashboard/actions"
+import { connectAndGetQrAction, disconnectInstanceAction, getCsrfTokenAction } from "@/app/dashboard/actions"
 import TextShimmerWave from "@/components/ui/text-shimmer-wave"
 import { Button } from "@/components/ui/button"
 import { CheckCircle } from "lucide-react"
@@ -12,6 +12,7 @@ export default function ConnectInstanceModal({ instanceId, status, onClose, onSt
   const [error, setError] = useState<string | undefined>(undefined)
   const [qrCode, setQrCode] = useState<string | undefined>(undefined)
   const [disconnecting, setDisconnecting] = useState(false)
+  const [csrfToken, setCsrfToken] = useState("")
 
   async function fetchQr() {
     setLoading(true)
@@ -19,6 +20,7 @@ export default function ConnectInstanceModal({ instanceId, status, onClose, onSt
     try {
       const fd = new FormData()
       fd.append('instanceId', instanceId)
+      fd.append('csrfToken', csrfToken)
       const res = await connectAndGetQrAction(undefined as any, fd)
       if (res?.success && res.qrCode) {
         setQrCode(res.qrCode)
@@ -39,8 +41,17 @@ export default function ConnectInstanceModal({ instanceId, status, onClose, onSt
       setQrCode(undefined)
       return
     }
-    fetchQr()
-  }, [status])
+    if (csrfToken) fetchQr()
+  }, [status, csrfToken])
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const r = await getCsrfTokenAction()
+        setCsrfToken(r?.token || "")
+      } catch {}
+    })()
+  }, [])
 
   const src = (() => {
     const code = qrCode || ""
@@ -94,7 +105,7 @@ export default function ConnectInstanceModal({ instanceId, status, onClose, onSt
                 <Button type="button" variant="destructive" disabled={disconnecting} onClick={async () => {
                   setDisconnecting(true)
                   try {
-                    await disconnectInstanceAction(instanceId)
+                    await disconnectInstanceAction(instanceId, csrfToken)
                     try { onStatusChange && onStatusChange('disconnected') } catch {}
                     try { window.dispatchEvent(new CustomEvent('dashboard:refresh')) } catch {}
                     onClose()

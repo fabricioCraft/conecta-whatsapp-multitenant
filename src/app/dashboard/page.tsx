@@ -44,7 +44,6 @@ export default function DashboardPage() {
     async function bootstrap() {
       const { data: userData } = await supabase.auth.getUser()
       const user = userData?.user
-      console.log('User ID:', user?.id)
       if (!user) {
         window.location.assign("/login")
         return
@@ -55,7 +54,7 @@ export default function DashboardPage() {
         .eq('id', user.id)
         .single()
 
-      console.log('Org ID do Perfil:', profile?.organization_id)
+      
       if (!profile?.organization_id) {
         if (mounted) {
           setProfileMissing(true)
@@ -82,13 +81,9 @@ export default function DashboardPage() {
         `)
         .eq('organization_id', profile?.organization_id)
 
-      if (found && found.length > 0) {
-        console.log('--- DEBUG QUERY INSTANCES ---')
-        console.log('Primeira instância:', JSON.stringify(found[0], null, 2))
-      }
+      
 
       if (error) console.error('Erro ao buscar instâncias:', error)
-      console.log('Instâncias encontradas:', found?.length)
 
       if (mounted) {
         setInstances(found ?? [])

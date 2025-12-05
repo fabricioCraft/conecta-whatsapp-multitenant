@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { createInstanceAction } from "@/app/dashboard/actions"
+import { useEffect, useState } from "react"
+import { createInstanceAction, getCsrfTokenAction } from "@/app/dashboard/actions"
 import { Button } from "@/components/ui/button"
 import TextShimmerWave from "@/components/ui/text-shimmer-wave"
 import { toast } from "sonner"
@@ -9,6 +9,16 @@ import { toast } from "sonner"
 export default function CreateInstanceModal({ onClose }: { onClose: () => void }) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
+  const [csrfToken, setCsrfToken] = useState<string>("")
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await getCsrfTokenAction()
+        setCsrfToken(res?.token || "")
+      } catch {}
+    })()
+  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -45,6 +55,7 @@ export default function CreateInstanceModal({ onClose }: { onClose: () => void }
             <button onClick={onClose} className="text-slate-400 hover:text-slate-50">✕</button>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <input type="hidden" name="csrfToken" value={csrfToken} />
             <div>
               <label htmlFor="instanceName" className="block text-sm font-medium text-slate-300 mb-2">Nome da Instância</label>
               <input
