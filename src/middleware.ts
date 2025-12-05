@@ -22,10 +22,10 @@ function rateLimit(key: string, rate: number, capacity: number): boolean {
 function buildCsp(dev: boolean): string {
   const base = [
     dev ? "default-src 'self' blob: data:" : "default-src 'self'",
-    dev ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:" : "script-src 'self'",
+    dev ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:" : "script-src 'self' 'unsafe-inline'",
     dev ? "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com" : "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     dev ? "img-src 'self' data: blob: https:" : "img-src 'self' data: https:",
-    dev ? "font-src 'self' data: https://fonts.gstatic.com" : "font-src 'self' data: https://fonts.gstatic.com",
+    dev ? "font-src 'self' data: blob: https://fonts.gstatic.com https:" : "font-src 'self' data: https://fonts.gstatic.com https:",
     dev ? "connect-src 'self' ws: wss: https://manager.dinastiapi.evolutta.com.br https://webhooks.evolutta.com.br https://*.supabase.co https://*.supabase.in" : "connect-src 'self' https://manager.dinastiapi.evolutta.com.br https://webhooks.evolutta.com.br https://*.supabase.co https://*.supabase.in",
     dev ? "worker-src 'self' blob:" : "worker-src 'self'",
     dev ? "frame-ancestors *" : "frame-ancestors 'none'",
