@@ -253,3 +253,67 @@ export async function checkInstanceStatusAction(instanceId: string): Promise<{ s
   await supabase.from('instances').update({ status }).eq('id', instanceId)
   return { success: true, status }
 }
+
+export async function disconnectInstanceAction(instanceId: string): Promise<{ success: boolean }> {
+  const supabase = createClient()
+  const { data: tokenRes } = await supabase
+    .from('instances')
+    .select('token')
+    .eq('id', instanceId)
+    .single()
+
+  const token = String(tokenRes?.token ?? '')
+  try {
+    await fetch('https://manager.dinastiapi.evolutta.com.br/session/disconnect', {
+      method: 'POST',
+      headers: { token },
+    })
+  } catch {}
+  await supabase.from('instances').update({ status: 'disconnected' }).eq('id', instanceId)
+  return { success: true }
+}
+
+export async function deleteInstanceAction(instanceId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: inst, error: instError } = await supabase
+    .from('instances')
+    .select('instance_id')
+    .eq('id', instanceId)
+    .single()
+
+  if (instError || !inst?.instance_id) {
+    return { success: false, error: 'instance_id ausente para esta instância' }
+  }
+
+  const externalId = String(inst.instance_id)
+  const adminKey = process.env.DINASTI_GLOBAL_KEY || 'QupjxzgQdjGsNDGxukFxUqLZ2jktoEwN'
+  const url = `https://manager.dinastiapi.evolutta.com.br/admin/users/${encodeURIComponent(externalId)}`
+
+  try {
+    const resp = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        accept: 'application/json',
+        Authorization: adminKey,
+      },
+    })
+
+    if (!resp.ok) {
+      try {
+        const j = await resp.json()
+        const msg = j?.message || j?.error || `Falha na DinastiAPI (status ${resp.status})`
+        return { success: false, error: msg }
+      } catch {
+        const t = await resp.text().catch(() => '')
+        const msg = t || `Falha na DinastiAPI (status ${resp.status})`
+        return { success: false, error: msg }
+      }
+    }
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Erro na requisição de exclusão' }
+  }
+
+  await supabase.from('instances').delete().eq('id', instanceId)
+  revalidatePath('/dashboard')
+  return { success: true }
+}

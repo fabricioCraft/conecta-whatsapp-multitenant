@@ -9,7 +9,7 @@ function cn(...inputs: Array<string | undefined | false | null>) {
 }
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "outline" | "ghost"
+  variant?: "primary" | "secondary" | "outline" | "ghost" | "destructive"
   size?: "sm" | "md" | "lg"
 }
 
@@ -21,6 +21,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       secondary: "bg-slate-800 hover:bg-slate-700 text-slate-100 focus-visible:ring-slate-700",
       outline: "border border-slate-800 text-slate-300 hover:text-slate-50 focus-visible:ring-slate-700",
       ghost: "text-slate-300 hover:text-slate-50",
+      destructive: "bg-rose-600 hover:bg-rose-500 text-white focus-visible:ring-rose-600",
     }
     const sizes = {
       sm: "px-3 py-1.5 text-sm",
@@ -37,4 +38,3 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   }
 )
 Button.displayName = "Button"
-

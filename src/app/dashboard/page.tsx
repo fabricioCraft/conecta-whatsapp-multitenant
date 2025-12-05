@@ -36,6 +36,7 @@ export default function DashboardPage() {
   const [showForm, setShowForm] = useState(false)
   const [profileMissing, setProfileMissing] = useState(false)
   const [instances, setInstances] = useState<any[]>([])
+  const [userName, setUserName] = useState<string>("")
   const [state] = useFormState<CreateState, FormData>(createInstanceAction as any, { success: false })
 
   useEffect(() => {
@@ -50,7 +51,7 @@ export default function DashboardPage() {
       }
       const { data: profile } = await supabase
         .from('profiles')
-        .select('organization_id, organizations(name)')
+        .select('organization_id, full_name, organizations(name)')
         .eq('id', user.id)
         .single()
 
@@ -66,6 +67,10 @@ export default function DashboardPage() {
 
       if (mounted) {
         setOrgName((profile as any)?.organizations?.name ?? "")
+        const full = String((profile as any)?.full_name ?? "")
+        const parts = full.trim().split(/\s+/).filter(Boolean)
+        const short = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : (parts[0] || "")
+        setUserName(short)
       }
 
       const { data: found, error } = await supabase
@@ -106,7 +111,7 @@ export default function DashboardPage() {
       <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl font-semibold">{loading ? "Carregando..." : orgName || "Sua Empresa"}</span>
+            <span className="text-xl font-semibold">{loading ? "Carregando..." : `Bem vindo, ${userName || "Usuário"}`}</span>
           </div>
           <form action={logoutAction}>
             <button

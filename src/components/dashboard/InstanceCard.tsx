@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { updateInstanceAction, checkInstanceStatusAction } from "@/app/dashboard/actions"
+import { createPortal } from "react-dom"
+import { updateInstanceAction, checkInstanceStatusAction, deleteInstanceAction } from "@/app/dashboard/actions"
 import { Smartphone, User, Link as LinkIcon, Settings } from "lucide-react"
 import TextShimmerWave from "@/components/ui/text-shimmer-wave"
 import { Button } from "@/components/ui/button"
@@ -36,9 +37,9 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
   }, [instance])
 
   const statusColor = useMemo(() => {
-    if (localStatus === "connected") return "bg-emerald-500"
+    if (localStatus === "connected") return "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse"
     if (localStatus === "checking") return "bg-yellow-400 animate-pulse"
-    return "bg-red-500"
+    return "bg-rose-500 shadow-sm animate-pulse"
   }, [localStatus])
 
   useEffect(() => {
@@ -57,6 +58,36 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
     return () => {
       mounted = false
     }
+  }, [instance.id])
+
+  useEffect(() => {
+    const onModalOpen = (e: any) => {
+      const d = e?.detail || {}
+      if (d?.id !== instance.id) {
+        setOpen(false)
+        setManageOpen(false)
+      }
+    }
+    try { window.addEventListener('dashboard:modal-open', onModalOpen) } catch {}
+    return () => {
+      try { window.removeEventListener('dashboard:modal-open', onModalOpen) } catch {}
+    }
+  }, [instance.id])
+
+  useEffect(() => {
+    const s = (instance.status ?? '').toString().toLowerCase()
+    if (s === 'connected') setLocalStatus('connected')
+    else if (s === 'disconnected') setLocalStatus('disconnected')
+  }, [instance.status])
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await checkInstanceStatusAction(instance.id)
+        setLocalStatus(res.status === 'connected' ? 'connected' : 'disconnected')
+      } catch {}
+    }, 10000)
+    return () => clearInterval(interval)
   }, [instance.id])
 
   const ownerName = useMemo(() => {
@@ -105,47 +136,48 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
 
       <div className="mt-5 flex items-center justify-end gap-2">
         <button
-          onClick={() => setManageOpen(true)}
+          onClick={() => { setManageOpen(true); try { window.dispatchEvent(new CustomEvent('dashboard:modal-open', { detail: { id: instance.id, kind: 'manage' } })) } catch {} }}
           className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm"
         >
           Gerenciar
         </button>
-        <button onClick={() => setOpen(true)} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-slate-50">
+        <button onClick={() => { setOpen(true); try { window.dispatchEvent(new CustomEvent('dashboard:modal-open', { detail: { id: instance.id, kind: 'edit' } })) } catch {} }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-slate-50">
           <Settings className="h-4 w-4" /> Editar
         </button>
       </div>
 
       {open && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
-          <div className="absolute inset-0 flex items-center justify-center px-4">
-            <div className="w-full max-w-lg bg-slate-900 rounded-lg border border-slate-700 p-6" role="dialog" aria-modal="true">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Editar {title}</h2>
-                <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-50">✕</button>
-              </div>
-              <form
-                className="space-y-4"
-                onSubmit={async (e) => {
-                  e.preventDefault()
-                  setError(undefined)
-                  setIsLoading(true)
-                  const fd = new FormData(e.currentTarget as HTMLFormElement)
-                  const toastId = toast.loading("Atualizando webhook...")
-                  const res = await updateInstanceAction(undefined as any, fd)
-                  if (res?.success) {
-                    try { window.dispatchEvent(new CustomEvent('dashboard:refresh')) } catch {}
-                    try { setOpen(false) } catch {}
-                    toast.success(res.message || 'Webhook atualizado com sucesso', { id: toastId })
-                  } else {
-                    const msg = res?.error || 'Falha ao atualizar webhook'
-                    setError(msg)
-                    toast.error(msg, { id: toastId })
-                  }
-                  setIsLoading(false)
-                }}
-              >
-                <input type="hidden" name="instanceId" value={instance.id} />
+        typeof document !== 'undefined' ? createPortal(
+          <div className="fixed inset-0 z-[10000]">
+            <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
+            <div className="absolute inset-0 flex items-center justify-center px-4">
+              <div className="relative z-[10002] w-full max-w-lg bg-slate-900 rounded-lg border border-slate-700 p-6" role="dialog" aria-modal="true">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold">Editar {title}</h2>
+                  <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-50">✕</button>
+                </div>
+                <form
+                  className="space-y-4"
+                  onSubmit={async (e) => {
+                    e.preventDefault()
+                    setError(undefined)
+                    setIsLoading(true)
+                    const fd = new FormData(e.currentTarget as HTMLFormElement)
+                    const toastId = toast.loading("Atualizando webhook...")
+                    const res = await updateInstanceAction(undefined as any, fd)
+                    if (res?.success) {
+                      try { window.dispatchEvent(new CustomEvent('dashboard:refresh')) } catch {}
+                      try { setOpen(false) } catch {}
+                      toast.success(res.message || 'Webhook atualizado com sucesso', { id: toastId })
+                    } else {
+                      const msg = res?.error || 'Falha ao atualizar webhook'
+                      setError(msg)
+                      toast.error(msg, { id: toastId })
+                    }
+                    setIsLoading(false)
+                  }}
+                >
+                  <input type="hidden" name="instanceId" value={instance.id} />
 
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Nome da Instância</label>
@@ -191,14 +223,48 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
                 {error && (
                   <div className="mt-3 text-red-400 text-sm">{error}</div>
                 )}
-              </form>
+                  <div className="mt-6 border-t border-slate-800 pt-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-slate-400">Danger Zone</div>
+                      <Button
+                        variant="destructive"
+                        type="button"
+                        onClick={async () => {
+                          const ok = typeof window !== 'undefined' ? window.confirm('Tem certeza que deseja excluir?') : true
+                          if (!ok) return
+                        const toastId = toast.loading('Excluindo instância...')
+                        try {
+                          const res = await deleteInstanceAction(instance.id)
+                          if (!res?.success) {
+                            throw new Error(res?.error || 'Falha ao excluir instância na API')
+                          }
+                          try { window.dispatchEvent(new CustomEvent('dashboard:refresh')) } catch {}
+                          setOpen(false)
+                          toast.success('Instância excluída', { id: toastId })
+                        } catch (e: any) {
+                          toast.error(e?.message || 'Falha ao excluir instância', { id: toastId })
+                        }
+                      }}
+                    >
+                      Deletar Instância
+                    </Button>
+                  </div>
+                  </div>
+                </form>
+              </div>
             </div>
-          </div>
-        </div>
+          </div>,
+          document.body
+        ) : null
       )}
 
       {manageOpen && (
-        <ConnectInstanceModal instanceId={instance.id} onClose={() => setManageOpen(false)} />
+        <ConnectInstanceModal
+          instanceId={instance.id}
+          status={localStatus === 'connected' ? 'connected' : 'disconnected'}
+          onClose={() => setManageOpen(false)}
+          onStatusChange={(s) => setLocalStatus(s)}
+        />
       )}
     </div>
   )

@@ -1,9 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { useFormState, useFormStatus } from "react-dom"
-import { updateInstanceAction } from "@/app/dashboard/actions"
+import { updateInstanceAction, deleteInstanceAction } from "@/app/dashboard/actions"
 import { Settings } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 
 type Instance = {
   id: string
@@ -29,6 +32,7 @@ function SubmitButton() {
 
 export default function EditInstanceModal({ instance }: { instance: Instance }) {
   const [open, setOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [state, formAction] = useFormState<UpdateState, FormData>(updateInstanceAction as any, { success: false })
 
   useEffect(() => {
@@ -51,10 +55,11 @@ export default function EditInstanceModal({ instance }: { instance: Instance }) 
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
-          <div className="absolute inset-0 flex items-center justify-center px-4">
-            <div className="w-full max-w-lg bg-slate-900/80 backdrop-blur-md rounded-lg border border-slate-800 p-6" role="dialog" aria-modal="true">
+        typeof document !== 'undefined' ? createPortal(
+          <div className="fixed inset-0 z-[10000]">
+            <div className="absolute inset-0 bg-black/60 z-[10000]" onClick={() => setOpen(false)} />
+            <div className="absolute inset-0 flex items-center justify-center px-4 z-[10001]">
+              <div className="relative z-[10002] w-full max-w-lg bg-slate-900/80 backdrop-blur-md rounded-lg border border-slate-800 p-6" role="dialog" aria-modal="true">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">Editar Instância</h2>
                 <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-50">✕</button>
@@ -103,12 +108,44 @@ export default function EditInstanceModal({ instance }: { instance: Instance }) 
                 {state?.error && (
                   <div className="mt-3 text-red-400 text-sm">{state.error}</div>
                 )}
+                <div className="mt-6 border-t border-slate-800 pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-slate-400">Danger Zone</div>
+                    <Button
+                      variant="destructive"
+                      type="button"
+                      disabled={deleting}
+                      onClick={async () => {
+                        const ok = typeof window !== 'undefined' ? window.confirm('Tem certeza que deseja excluir?') : true
+                        if (!ok) return
+                        const toastId = toast.loading('Excluindo instância...')
+                        setDeleting(true)
+                        try {
+                          const res = await deleteInstanceAction(instance.id)
+                          if (!res?.success) {
+                            throw new Error(res?.error || 'Falha ao excluir instância na API')
+                          }
+                          try { window.dispatchEvent(new CustomEvent('dashboard:refresh')) } catch {}
+                          setOpen(false)
+                          toast.success('Instância excluída', { id: toastId })
+                        } catch (e: any) {
+                          toast.error(e?.message || 'Falha ao excluir instância', { id: toastId })
+                        } finally {
+                          setDeleting(false)
+                        }
+                      }}
+                    >
+                      {deleting ? 'Excluindo...' : 'Deletar Instância'}
+                    </Button>
+                  </div>
+                </div>
               </form>
+              </div>
             </div>
-          </div>
-        </div>
+          </div>,
+          document.body
+        ) : null
       )}
     </div>
   )
 }
-
