@@ -21,13 +21,14 @@ function rateLimit(key: string, rate: number, capacity: number): boolean {
 
 function buildCsp(dev: boolean): string {
   const base = [
-    "default-src 'self'",
-    dev ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'" : "script-src 'self'",
-    dev ? "style-src 'self' 'unsafe-inline'" : "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https:",
+    dev ? "default-src 'self' blob: data:" : "default-src 'self'",
+    dev ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:" : "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    dev ? "img-src 'self' data: blob: https:" : "img-src 'self' data: https:",
     "font-src 'self' data:",
     dev ? "connect-src 'self' ws: wss: https://manager.dinastiapi.evolutta.com.br https://webhooks.evolutta.com.br https://*.supabase.co https://*.supabase.in" : "connect-src 'self' https://manager.dinastiapi.evolutta.com.br https://webhooks.evolutta.com.br https://*.supabase.co https://*.supabase.in",
-    "frame-ancestors 'none'",
+    dev ? "worker-src 'self' blob:" : "worker-src 'self'",
+    dev ? "frame-ancestors *" : "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     "object-src 'none'",
