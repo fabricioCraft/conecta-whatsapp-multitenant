@@ -7,6 +7,10 @@ import { cookies } from 'next/headers'
 import { randomBytes } from 'node:crypto'
 import path from 'node:path'
 import fs from 'node:fs'
+import * as dotenv from 'dotenv'
+
+dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true })
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true })
 
 type CreateInstanceState = { error?: string; success?: boolean; message?: string } | null
 
@@ -411,7 +415,7 @@ export async function getCsrfTokenAction(): Promise<{ token: string }> {
   let t = c.get('csrf_token')?.value
   if (!t) {
     t = randomBytes(32).toString('hex')
-    c.set('csrf_token', t, { httpOnly: true, sameSite: 'strict', secure: true, path: '/' })
+    c.set('csrf_token', t, { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production', path: '/' })
   }
   return { token: t }
 }
