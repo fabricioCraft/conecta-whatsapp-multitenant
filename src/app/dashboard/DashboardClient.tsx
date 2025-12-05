@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useFormState, useFormStatus } from "react-dom"
 import { createBrowserClient } from "@supabase/ssr"
-import { createInstanceAction, logoutAction } from "./actions"
+import { createInstanceAction } from "./actions"
 import { LogOut, Plus, Smartphone } from "lucide-react"
 import InstanceCard from "@/components/dashboard/InstanceCard"
 import CreateInstanceModal from "@/components/dashboard/CreateInstanceModal"
@@ -86,15 +86,18 @@ export default function DashboardClient({ orgName: initialOrgName, userName: ini
           <div className="flex items-center gap-3">
             <span className="text-xl font-semibold">{`Bem vindo, ${userName || "Usuário"}`}</span>
           </div>
-          <form action={logoutAction}>
-            <button
-              type="submit"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-800 text-slate-400 hover:text-slate-50"
-            >
-              <LogOut className="h-4 w-4" />
-              Sair
-            </button>
-          </form>
+          <button
+            type="button"
+            onClick={async () => {
+              try { await supabase.auth.signOut() } catch {}
+              try { window.location.replace('/login') } catch { try { window.location.assign('/login') } catch {} }
+              try { window.dispatchEvent(new CustomEvent('dashboard:refresh')) } catch {}
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-800 text-slate-400 hover:text-slate-50"
+          >
+            <LogOut className="h-4 w-4" />
+            Sair
+          </button>
         </div>
       </header>
 
