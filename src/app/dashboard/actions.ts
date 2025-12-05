@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 import { randomBytes } from 'node:crypto'
+import path from 'node:path'
+import fs from 'node:fs'
 
 type CreateInstanceState = { error?: string; success?: boolean; message?: string } | null
 
@@ -344,9 +346,34 @@ export async function deleteInstanceAction(instanceId: string, csrfToken?: strin
   }
 
   const externalId = String(inst.instance_id)
-  const adminKey = process.env.DINASTI_GLOBAL_KEY
+  const readEnv = (key: string): string | undefined => {
+    const files = ['.env.local', '.env']
+    for (const name of files) {
+      try {
+        const p = path.resolve(process.cwd(), name)
+        if (!fs.existsSync(p)) continue
+        const content = fs.readFileSync(p, 'utf8')
+        for (const line of content.split(/\r?\n/)) {
+          const trimmed = line.trim()
+          if (!trimmed || trimmed.startsWith('#')) continue
+          const idx = trimmed.indexOf('=')
+          if (idx === -1) continue
+          const k = trimmed.slice(0, idx).trim()
+          let v = trimmed.slice(idx + 1).trim()
+          if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+            v = v.slice(1, -1)
+          }
+          if (k === key) {
+            if (v) return v
+          }
+        }
+      } catch {}
+    }
+    return undefined
+  }
+  const adminKey = process.env.DINASTI_GLOBAL_KEY || readEnv('DINASTI_GLOBAL_KEY')
   if (!adminKey) {
-    return { success: false, error: 'Chave administrativa ausente. Configure DINASTI_GLOBAL_KEY no .env.local' }
+    return { success: false, error: 'Chave administrativa ausente. Configure DINASTI_GLOBAL_KEY em .env ou .env.local' }
   }
   const url = `https://manager.dinastiapi.evolutta.com.br/admin/users/${encodeURIComponent(externalId)}`
 
