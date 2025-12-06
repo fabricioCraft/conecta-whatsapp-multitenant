@@ -12,17 +12,19 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('organization_id, full_name, organizations(name)')
+    .select('organization_id, full_name, role, organizations(name)')
     .eq('id', user!.id)
     .single()
 
   let orgName = ""
   let userName = ""
+  let userRole = ""
   let profileMissing = false
   if (!profile?.organization_id) {
     profileMissing = true
   } else {
     orgName = (profile as any)?.organizations?.name ?? ""
+    userRole = (profile as any)?.role ?? ""
     const full = String((profile as any)?.full_name ?? "")
     const parts = full.trim().split(/\s+/).filter(Boolean)
     userName = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : (parts[0] || "")
@@ -45,6 +47,8 @@ export default async function DashboardPage() {
     <DashboardClient
       orgName={orgName}
       userName={userName}
+      userRole={userRole}
+      userId={user.id}
       profileMissing={profileMissing}
       instances={instances}
     />

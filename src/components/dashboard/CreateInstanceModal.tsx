@@ -1,24 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createInstanceAction, getCsrfTokenAction } from "@/app/dashboard/actions"
+import { createInstanceAction } from "@/app/dashboard/actions"
 import { Button } from "@/components/ui/button"
 import TextShimmerWave from "@/components/ui/text-shimmer-wave"
 import { toast } from "sonner"
 
-export default function CreateInstanceModal({ onClose }: { onClose: () => void }) {
+export default function CreateInstanceModal({ onClose, csrfToken }: { onClose: () => void; csrfToken: string }) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
-  const [csrfToken, setCsrfToken] = useState<string>("")
-
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const res = await getCsrfTokenAction()
-        setCsrfToken(res?.token || "")
-      } catch {}
-    })()
-  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()

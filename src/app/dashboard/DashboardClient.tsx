@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useFormState, useFormStatus } from "react-dom"
 import { createBrowserClient } from "@supabase/ssr"
-import { createInstanceAction } from "./actions"
+import { createInstanceAction, getCsrfTokenAction } from "./actions"
 import { LogOut, Plus, Smartphone } from "lucide-react"
 import InstanceCard from "@/components/dashboard/InstanceCard"
 import CreateInstanceModal from "@/components/dashboard/CreateInstanceModal"
@@ -23,7 +23,7 @@ function SubmitButton() {
   )
 }
 
-export default function DashboardClient({ orgName: initialOrgName, userName: initialUserName, profileMissing: initialProfileMissing, instances: initialInstances }: { orgName: string; userName: string; profileMissing: boolean; instances: any[] }) {
+export default function DashboardClient({ orgName: initialOrgName, userName: initialUserName, userRole: initialUserRole, userId: initialUserId, profileMissing: initialProfileMissing, instances: initialInstances }: { orgName: string; userName: string; userRole: string; userId: string; profileMissing: boolean; instances: any[] }) {
   const supabase = useMemo(() => {
     return createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL as string,
@@ -36,7 +36,19 @@ export default function DashboardClient({ orgName: initialOrgName, userName: ini
   const [profileMissing, setProfileMissing] = useState(initialProfileMissing)
   const [instances, setInstances] = useState<any[]>(initialInstances)
   const [userName, setUserName] = useState<string>(initialUserName)
+  const [userRole, setUserRole] = useState<string>(initialUserRole)
+  const [userId, setUserId] = useState<string>(initialUserId)
+  const [csrfToken, setCsrfToken] = useState<string>("")
   const [state] = useFormState<CreateState, FormData>(createInstanceAction as any, { success: false })
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const r = await getCsrfTokenAction()
+        setCsrfToken(r?.token || "")
+      } catch {}
+    })()
+  }, [])
 
   useEffect(() => {
     const onRefresh = async () => {
@@ -47,9 +59,10 @@ export default function DashboardClient({ orgName: initialOrgName, userName: ini
           window.location.assign('/login')
           return
         }
+        setUserId(user.id)
         const { data: profile } = await supabase
           .from('profiles')
-          .select('organization_id, full_name, organizations(name)')
+          .select('organization_id, full_name, role, organizations(name)')
           .eq('id', user.id)
           .single()
         if (!profile?.organization_id) {
@@ -58,6 +71,7 @@ export default function DashboardClient({ orgName: initialOrgName, userName: ini
           return
         }
         setOrgName((profile as any)?.organizations?.name ?? "")
+        setUserRole((profile as any)?.role ?? "")
         const full = String((profile as any)?.full_name ?? "")
         const parts = full.trim().split(/\s+/).filter(Boolean)
         const short = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : (parts[0] || "")
@@ -117,7 +131,7 @@ export default function DashboardClient({ orgName: initialOrgName, userName: ini
         </div>
 
         {showForm && (
-          <CreateInstanceModal onClose={() => setShowForm(false)} />
+          <CreateInstanceModal onClose={() => setShowForm(false)} csrfToken={csrfToken} />
         )}
 
         {(() => {
@@ -147,7 +161,7 @@ export default function DashboardClient({ orgName: initialOrgName, userName: ini
           return (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {instances.map((inst: any) => (
-                <InstanceCard key={inst.id} instance={inst} />
+                <InstanceCard key={inst.id} instance={inst} userId={userId} userRole={userRole} csrfToken={csrfToken} />
               ))}
             </div>
           )

@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
-import { updateInstanceAction, checkInstanceStatusAction, deleteInstanceAction, getCsrfTokenAction } from "@/app/dashboard/actions"
-import { Smartphone, User, Link as LinkIcon, Settings } from "lucide-react"
+import { updateInstanceAction, checkInstanceStatusAction, deleteInstanceAction } from "@/app/dashboard/actions"
+import { Smartphone, User, Link as LinkIcon, Settings, Lock } from "lucide-react"
 import TextShimmerWave from "@/components/ui/text-shimmer-wave"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
@@ -11,6 +11,7 @@ import ConnectInstanceModal from "@/components/dashboard/ConnectInstanceModal"
 
 type InstanceWithJoins = {
   id: string
+  user_id?: string | null
   name?: string | null
   dinasti_instance_name?: string | null
   instance_id?: string | null
@@ -23,13 +24,13 @@ type InstanceWithJoins = {
 
 type UpdateState = { error?: string; success?: boolean; message?: string } | null
 
-export default function InstanceCard({ instance }: { instance: InstanceWithJoins }) {
+export default function InstanceCard({ instance, userId, userRole, csrfToken }: { instance: InstanceWithJoins; userId: string; userRole: string; csrfToken: string }) {
   const [open, setOpen] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
   const [localStatus, setLocalStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking')
-  const [csrfToken, setCsrfToken] = useState<string>("")
+  const [lastError, setLastError] = useState<string | null>(null)
 
   const title = useMemo(() => {
     return (
@@ -42,6 +43,12 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
     if (localStatus === "checking") return "bg-yellow-400 animate-pulse"
     return "bg-rose-500 shadow-sm animate-pulse"
   }, [localStatus])
+
+  const canDelete = useMemo(() => {
+    if (userRole === 'admin') return true
+    if (instance.user_id === userId) return true
+    return false
+  }, [userRole, userId, instance.user_id])
 
   useEffect(() => {
     let mounted = true
@@ -60,15 +67,6 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
       mounted = false
     }
   }, [instance.id])
-
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const r = await getCsrfTokenAction()
-        setCsrfToken(r?.token || "")
-      } catch {}
-    })()
-  }, [])
 
   useEffect(() => {
     const onModalOpen = (e: any) => {
@@ -236,15 +234,20 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
                   <div className="mt-3 text-red-400 text-sm">{error}</div>
                 )}
                   <div className="mt-6 border-t border-slate-800 pt-4">
+                    {lastError && <div className="mb-4 p-2 border border-red-500 text-red-500 font-bold">ERROR: {lastError}</div>}
                     <div className="flex items-center justify-between">
                       <div className="text-sm text-slate-400">Danger Zone</div>
                       <Button
                         variant="destructive"
                         type="button"
+                        disabled={!canDelete}
+                        className={!canDelete ? "opacity-50 cursor-not-allowed" : ""}
                         onClick={async () => {
+                          if (!canDelete) return
                           const ok = typeof window !== 'undefined' ? window.confirm('Tem certeza que deseja excluir?') : true
                           if (!ok) return
                         const toastId = toast.loading('Excluindo instância...')
+                        setLastError(null)
                         try {
                           const res = await deleteInstanceAction(instance.id, csrfToken)
                           if (!res?.success) {
@@ -254,10 +257,13 @@ export default function InstanceCard({ instance }: { instance: InstanceWithJoins
                           setOpen(false)
                           toast.success('Instância excluída', { id: toastId })
                         } catch (e: any) {
-                          toast.error(e?.message || 'Falha ao excluir instância', { id: toastId })
+                          const msg = e?.message || 'Falha ao excluir instância'
+                          setLastError(msg)
+                          toast.error(msg, { id: toastId })
                         }
                       }}
                     >
+                      {!canDelete && <Lock className="h-4 w-4 mr-2" />}
                       Deletar Instância
                     </Button>
                   </div>

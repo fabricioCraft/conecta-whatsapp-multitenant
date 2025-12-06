@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 import { randomBytes } from 'node:crypto'
 import path from 'node:path'
-import fs from 'node:fs'
 import * as dotenv from 'dotenv'
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true })
@@ -15,6 +14,11 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true 
 type CreateInstanceState = { error?: string; success?: boolean; message?: string } | null
 
 export async function createInstanceAction(prevState: CreateInstanceState, formData?: FormData): Promise<CreateInstanceState> {
+  // Ensure env vars are loaded
+  if (!process.env.DINASTI_API_KEY) {
+    dotenv.config({ path: path.resolve(process.cwd(), '.env') })
+  }
+
   const fd = (formData ?? (prevState as unknown as FormData)) as FormData
   const csrfOk = (() => {
     const c = cookies().get('csrf_token')?.value
@@ -333,62 +337,58 @@ export async function disconnectInstanceAction(instanceId: string, csrfToken?: s
   return { success: true }
 }
 
-export async function deleteInstanceAction(instanceId: string, csrfToken?: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteInstanceAction(instanceUUID: string, csrfToken?: string): Promise<{ success: boolean; error?: string }> {
   const c = cookies().get('csrf_token')?.value
+  
   if (!c || !csrfToken || c !== csrfToken) {
     return { success: false, error: 'CSRF inválido' }
   }
   const supabase = createClient()
-  const { data: inst, error: instError } = await supabase
-    .from('instances')
-    .select('instance_id')
-    .eq('id', instanceId)
-    .single()
+  const { data: userRes } = await supabase.auth.getUser()
+  const user = userRes?.user
+  if (!user) {
+    return { success: false, error: 'Usuário não autenticado' }
+  }
 
-  if (instError || !inst?.instance_id) {
+  const [profileRes, instRes] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('instances')
+      .select('user_id, instance_id')
+      .eq('id', instanceUUID)
+      .single(),
+  ])
+
+  const profile = profileRes.data as any
+  const inst = instRes.data as any
+
+  if (instRes.error || !inst?.instance_id) {
     return { success: false, error: 'instance_id ausente para esta instância' }
   }
 
-  const externalId = String(inst.instance_id)
-  try {
-    dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true })
-    dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true })
-  } catch {}
-  const parseEnvFiles = (): Record<string, string> => {
-    const out: Record<string, string> = {}
-    const names = ['.env.local', '.env']
-    const bases = [process.cwd(), path.resolve(__dirname, '../../../'), path.resolve(__dirname, '../../'), path.resolve(__dirname, '../'), __dirname]
-    for (const base of bases) {
-      for (const name of names) {
-        try {
-          const p = path.resolve(base, name)
-          if (!fs.existsSync(p)) continue
-          const content = fs.readFileSync(p, 'utf8')
-          const parsed = dotenv.parse(content)
-          for (const k of Object.keys(parsed)) {
-            if (!(k in out) && parsed[k] != null) out[k] = String(parsed[k])
-          }
-        } catch {}
-      }
-    }
-    return out
+  let canDelete = false
+  const userIsAdmin = String(profile?.role ?? '') === 'admin'
+  const userIsOwner = String(inst?.user_id ?? '') === user.id
+  if (userIsAdmin || userIsOwner) {
+    canDelete = true
   }
-  const envs = parseEnvFiles()
-  const adminKey =
-    process.env.DINASTI_GLOBAL_KEY ||
-    process.env.NEXT_PUBLIC_DINASTI_GLOBAL_KEY ||
-    envs['DINASTI_GLOBAL_KEY'] ||
-    envs['NEXT_PUBLIC_DINASTI_GLOBAL_KEY']
-  if (!adminKey) {
-    if (process.env.NODE_ENV !== 'production') {
-      await supabase.from('instances').delete().eq('id', instanceId)
-      revalidatePath('/dashboard')
-      return { success: true }
-    }
-    return { success: false, error: 'Chave administrativa ausente. Configure DINASTI_GLOBAL_KEY em .env ou .env.local' }
+  if (!canDelete) {
+    return { success: false, error: 'Você não tem permissão para excluir esta instância.' }
   }
-  const url = `https://manager.dinastiapi.evolutta.com.br/admin/users/${encodeURIComponent(externalId)}`
 
+  const externalId = String(inst.instance_id)
+  
+  const adminKey = process.env.DINASTI_API_KEY
+  
+  if (!adminKey) {
+    return { success: false, error: 'Chave administrativa ausente. Configure DINASTI_API_KEY em .env ou .env.local' }
+  }
+
+  const url = `https://manager.dinastiapi.evolutta.com.br/admin/users/${encodeURIComponent(externalId)}`
   try {
     const resp = await fetch(url, {
       method: 'DELETE',
@@ -413,7 +413,7 @@ export async function deleteInstanceAction(instanceId: string, csrfToken?: strin
     return { success: false, error: e?.message || 'Erro na requisição de exclusão' }
   }
 
-  await supabase.from('instances').delete().eq('id', instanceId)
+  await supabase.from('instances').delete().eq('id', instanceUUID)
   revalidatePath('/dashboard')
   return { success: true }
 }
