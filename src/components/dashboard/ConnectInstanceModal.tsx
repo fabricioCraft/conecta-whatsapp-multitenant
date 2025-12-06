@@ -6,6 +6,7 @@ import { connectAndGetQrAction, disconnectInstanceAction, getCsrfTokenAction } f
 import TextShimmerWave from "@/components/ui/text-shimmer-wave"
 import { Button } from "@/components/ui/button"
 import { CheckCircle } from "lucide-react"
+import { toast } from "sonner"
 
 export default function ConnectInstanceModal({ instanceId, status, onClose, onStatusChange }: { instanceId: string; status: 'connected' | 'disconnected'; onClose: () => void; onStatusChange?: (s: 'connected' | 'disconnected') => void }) {
   const [loading, setLoading] = useState(true)
@@ -45,11 +46,11 @@ export default function ConnectInstanceModal({ instanceId, status, onClose, onSt
   }, [status, csrfToken])
 
   useEffect(() => {
-    ;(async () => {
+    ; (async () => {
       try {
         const r = await getCsrfTokenAction()
         setCsrfToken(r?.token || "")
-      } catch {}
+      } catch { }
     })()
   }, [])
 
@@ -105,10 +106,17 @@ export default function ConnectInstanceModal({ instanceId, status, onClose, onSt
                 <Button type="button" variant="destructive" disabled={disconnecting} onClick={async () => {
                   setDisconnecting(true)
                   try {
-                    await disconnectInstanceAction(instanceId, csrfToken)
-                    try { onStatusChange && onStatusChange('disconnected') } catch {}
-                    try { window.dispatchEvent(new CustomEvent('dashboard:refresh')) } catch {}
-                    onClose()
+                    const res = await disconnectInstanceAction(instanceId, csrfToken)
+                    if (res.success) {
+                      try { onStatusChange && onStatusChange('disconnected') } catch { }
+                      try { window.dispatchEvent(new CustomEvent('dashboard:refresh')) } catch { }
+                      toast.success('WhatsApp desconectado com sucesso')
+                      onClose()
+                    } else {
+                      toast.error(res.error || 'Falha ao desconectar WhatsApp')
+                    }
+                  } catch (e: any) {
+                    toast.error(e?.message || 'Erro ao desconectar')
                   } finally {
                     setDisconnecting(false)
                   }

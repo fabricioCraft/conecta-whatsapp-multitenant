@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useFormState, useFormStatus } from "react-dom"
 import { createBrowserClient } from "@supabase/ssr"
 import { createInstanceAction, getCsrfTokenAction } from "./actions"
-import { LogOut, Plus, Smartphone } from "lucide-react"
+import { LogOut, Plus, Smartphone, Settings, Users, Building2 } from "lucide-react"
 import InstanceCard from "@/components/dashboard/InstanceCard"
 import CreateInstanceModal from "@/components/dashboard/CreateInstanceModal"
 
@@ -42,11 +42,11 @@ export default function DashboardClient({ orgName: initialOrgName, userName: ini
   const [state] = useFormState<CreateState, FormData>(createInstanceAction as any, { success: false })
 
   useEffect(() => {
-    ;(async () => {
+    ; (async () => {
       try {
         const r = await getCsrfTokenAction()
         setCsrfToken(r?.token || "")
-      } catch {}
+      } catch { }
     })()
   }, [])
 
@@ -85,11 +85,11 @@ export default function DashboardClient({ orgName: initialOrgName, userName: ini
           `)
           .eq('organization_id', profile.organization_id)
         setInstances(found ?? [])
-      } catch {}
+      } catch { }
     }
-    try { window.addEventListener('dashboard:refresh', onRefresh) } catch {}
+    try { window.addEventListener('dashboard:refresh', onRefresh) } catch { }
     return () => {
-      try { window.removeEventListener('dashboard:refresh', onRefresh) } catch {}
+      try { window.removeEventListener('dashboard:refresh', onRefresh) } catch { }
     }
   }, [supabase])
 
@@ -100,18 +100,45 @@ export default function DashboardClient({ orgName: initialOrgName, userName: ini
           <div className="flex items-center gap-3">
             <span className="text-xl font-semibold">{`Bem vindo, ${userName || "Usuário"}`}</span>
           </div>
-          <button
-            type="button"
-            onClick={async () => {
-              try { await supabase.auth.signOut() } catch {}
-              try { window.location.replace('/login') } catch { try { window.location.assign('/login') } catch {} }
-              try { window.dispatchEvent(new CustomEvent('dashboard:refresh')) } catch {}
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-800 text-slate-400 hover:text-slate-50"
-          >
-            <LogOut className="h-4 w-4" />
-            Sair
-          </button>
+          <div className="flex items-center gap-3">
+            {userRole === 'admin' && (
+              <>
+                <a
+                  href="/team"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-800 text-slate-400 hover:text-slate-50 hover:bg-slate-800/50 transition-colors"
+                >
+                  <Users className="h-4 w-4" />
+                  Equipe
+                </a>
+                <a
+                  href="/organization/settings"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-800 text-slate-400 hover:text-slate-50 hover:bg-slate-800/50 transition-colors"
+                >
+                  <Building2 className="h-4 w-4" />
+                  Organização
+                </a>
+              </>
+            )}
+            <a
+              href="/settings"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-800 text-slate-400 hover:text-slate-50 hover:bg-slate-800/50 transition-colors"
+            >
+              <Settings className="h-4 w-4" />
+              Configurações
+            </a>
+            <button
+              type="button"
+              onClick={async () => {
+                try { await supabase.auth.signOut() } catch { }
+                try { window.location.replace('/login') } catch { try { window.location.assign('/login') } catch { } }
+                try { window.dispatchEvent(new CustomEvent('dashboard:refresh')) } catch { }
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-800 text-slate-400 hover:text-slate-50 hover:bg-slate-800/50 transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+              Sair
+            </button>
+          </div>
         </div>
       </header>
 

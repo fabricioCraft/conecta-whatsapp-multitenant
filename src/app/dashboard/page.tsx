@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
+
 import DashboardClient from "./DashboardClient"
 
 export default async function DashboardPage() {
@@ -32,14 +33,19 @@ export default async function DashboardPage() {
 
   let instances: any[] = []
   if (profile?.organization_id) {
-    const { data: found } = await supabase
+    console.log('DashboardPage: Fetching instances for org:', profile.organization_id)
+
+    const { data: found, error } = await supabase
       .from('instances')
-      .select(`
-        *,
-        organizations (name),
-        profiles:user_id (full_name)
-      `)
+      .select('*')
       .eq('organization_id', profile.organization_id)
+
+    if (error) {
+      console.error('DashboardPage: Error fetching instances:', error)
+    } else {
+      console.log('DashboardPage: Instances found (simple query):', found?.length)
+    }
+
     instances = found ?? []
   }
 

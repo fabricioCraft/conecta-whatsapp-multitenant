@@ -52,17 +52,17 @@ export default function InstanceCard({ instance, userId, userRole, csrfToken }: 
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      setLocalStatus('checking')
-      try {
-        const res = await checkInstanceStatusAction(instance.id)
-        if (!mounted) return
-        setLocalStatus(res.status === 'connected' ? 'connected' : 'disconnected')
-      } catch {
-        if (!mounted) return
-        setLocalStatus('disconnected')
-      }
-    })()
+      ; (async () => {
+        setLocalStatus('checking')
+        try {
+          const res = await checkInstanceStatusAction(instance.id)
+          if (!mounted) return
+          setLocalStatus(res.status === 'connected' ? 'connected' : 'disconnected')
+        } catch {
+          if (!mounted) return
+          setLocalStatus('disconnected')
+        }
+      })()
     return () => {
       mounted = false
     }
@@ -76,9 +76,9 @@ export default function InstanceCard({ instance, userId, userRole, csrfToken }: 
         setManageOpen(false)
       }
     }
-    try { window.addEventListener('dashboard:modal-open', onModalOpen) } catch {}
+    try { window.addEventListener('dashboard:modal-open', onModalOpen) } catch { }
     return () => {
-      try { window.removeEventListener('dashboard:modal-open', onModalOpen) } catch {}
+      try { window.removeEventListener('dashboard:modal-open', onModalOpen) } catch { }
     }
   }, [instance.id])
 
@@ -93,7 +93,7 @@ export default function InstanceCard({ instance, userId, userRole, csrfToken }: 
       try {
         const res = await checkInstanceStatusAction(instance.id)
         setLocalStatus(res.status === 'connected' ? 'connected' : 'disconnected')
-      } catch {}
+      } catch { }
     }, 10000)
     return () => clearInterval(interval)
   }, [instance.id])
@@ -144,12 +144,17 @@ export default function InstanceCard({ instance, userId, userRole, csrfToken }: 
 
       <div className="mt-5 flex items-center justify-end gap-2">
         <button
-          onClick={() => { setManageOpen(true); try { window.dispatchEvent(new CustomEvent('dashboard:modal-open', { detail: { id: instance.id, kind: 'manage' } })) } catch {} }}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm"
+          onClick={() => {
+            if (!canDelete) return
+            setManageOpen(true)
+            try { window.dispatchEvent(new CustomEvent('dashboard:modal-open', { detail: { id: instance.id, kind: 'manage' } })) } catch { }
+          }}
+          disabled={!canDelete}
+          className={`px-3 py-1.5 rounded-lg text-sm ${!canDelete ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
         >
           Gerenciar
         </button>
-        <button onClick={() => { setOpen(true); try { window.dispatchEvent(new CustomEvent('dashboard:modal-open', { detail: { id: instance.id, kind: 'edit' } })) } catch {} }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-slate-50">
+        <button onClick={() => { setOpen(true); try { window.dispatchEvent(new CustomEvent('dashboard:modal-open', { detail: { id: instance.id, kind: 'edit' } })) } catch { } }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-slate-50">
           <Settings className="h-4 w-4" /> Editar
         </button>
       </div>
@@ -175,8 +180,8 @@ export default function InstanceCard({ instance, userId, userRole, csrfToken }: 
                     const toastId = toast.loading("Atualizando webhook...")
                     const res = await updateInstanceAction(undefined as any, fd)
                     if (res?.success) {
-                      try { window.dispatchEvent(new CustomEvent('dashboard:refresh')) } catch {}
-                      try { setOpen(false) } catch {}
+                      try { window.dispatchEvent(new CustomEvent('dashboard:refresh')) } catch { }
+                      try { setOpen(false) } catch { }
                       toast.success(res.message || 'Webhook atualizado com sucesso', { id: toastId })
                     } else {
                       const msg = res?.error || 'Falha ao atualizar webhook'
@@ -189,50 +194,50 @@ export default function InstanceCard({ instance, userId, userRole, csrfToken }: 
                   <input type="hidden" name="instanceId" value={instance.id} />
                   <input type="hidden" name="csrfToken" value={csrfToken} />
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Nome da Instância</label>
-                  <input
-                    type="text"
-                    value={(instance.dinasti_instance_name ?? instance.name ?? "").toString()}
-                    disabled
-                    className="w-full bg-slate-900/50 border border-slate-800 rounded-lg px-3 py-2 text-slate-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Token</label>
-                  <input
-                    type="password"
-                    value={maskedToken}
-                    disabled
-                    className="w-full bg-slate-900/50 border border-slate-800 rounded-lg px-3 py-2 text-slate-400"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="webhookUrl" className="block text-sm font-medium text-slate-300 mb-2">Webhook URL</label>
-                  <input
-                    id="webhookUrl"
-                    name="webhookUrl"
-                    type="url"
-                    defaultValue={instance.webhook ?? ""}
-                    placeholder="https://seu-dominio.com/webhook"
-                    className="w-full bg-slate-900/50 border border-slate-800 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-600 text-slate-50 placeholder-slate-500"
-                  />
-                </div>
-
-                {isLoading && (
-                  <div className="flex items-center justify-center">
-                    <TextShimmerWave text="Atualizando webhook..." className="text-slate-200" />
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Nome da Instância</label>
+                    <input
+                      type="text"
+                      value={(instance.dinasti_instance_name ?? instance.name ?? "").toString()}
+                      disabled
+                      className="w-full bg-slate-900/50 border border-slate-800 rounded-lg px-3 py-2 text-slate-400"
+                    />
                   </div>
-                )}
-                <div className="flex items-center justify-end gap-3">
-                  <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-                  <Button type="submit" disabled={isLoading}>{isLoading ? 'Salvando...' : 'Salvar'}</Button>
-                </div>
-                {error && (
-                  <div className="mt-3 text-red-400 text-sm">{error}</div>
-                )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Token</label>
+                    <input
+                      type="password"
+                      value={maskedToken}
+                      disabled
+                      className="w-full bg-slate-900/50 border border-slate-800 rounded-lg px-3 py-2 text-slate-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="webhookUrl" className="block text-sm font-medium text-slate-300 mb-2">Webhook URL</label>
+                    <input
+                      id="webhookUrl"
+                      name="webhookUrl"
+                      type="url"
+                      defaultValue={instance.webhook ?? ""}
+                      placeholder="https://seu-dominio.com/webhook"
+                      className="w-full bg-slate-900/50 border border-slate-800 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-600 text-slate-50 placeholder-slate-500"
+                    />
+                  </div>
+
+                  {isLoading && (
+                    <div className="flex items-center justify-center">
+                      <TextShimmerWave text="Atualizando webhook..." className="text-slate-200" />
+                    </div>
+                  )}
+                  <div className="flex items-center justify-end gap-3">
+                    <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+                    <Button type="submit" disabled={isLoading}>{isLoading ? 'Salvando...' : 'Salvar'}</Button>
+                  </div>
+                  {error && (
+                    <div className="mt-3 text-red-400 text-sm">{error}</div>
+                  )}
                   <div className="mt-6 border-t border-slate-800 pt-4">
                     {lastError && <div className="mb-4 p-2 border border-red-500 text-red-500 font-bold">ERROR: {lastError}</div>}
                     <div className="flex items-center justify-between">
@@ -246,27 +251,27 @@ export default function InstanceCard({ instance, userId, userRole, csrfToken }: 
                           if (!canDelete) return
                           const ok = typeof window !== 'undefined' ? window.confirm('Tem certeza que deseja excluir?') : true
                           if (!ok) return
-                        const toastId = toast.loading('Excluindo instância...')
-                        setLastError(null)
-                        try {
-                          const res = await deleteInstanceAction(instance.id, csrfToken)
-                          if (!res?.success) {
-                            throw new Error(res?.error || 'Falha ao excluir instância na API')
+                          const toastId = toast.loading('Excluindo instância...')
+                          setLastError(null)
+                          try {
+                            const res = await deleteInstanceAction(instance.id, csrfToken)
+                            if (!res?.success) {
+                              throw new Error(res?.error || 'Falha ao excluir instância na API')
+                            }
+                            try { window.dispatchEvent(new CustomEvent('dashboard:refresh')) } catch { }
+                            setOpen(false)
+                            toast.success('Instância excluída', { id: toastId })
+                          } catch (e: any) {
+                            const msg = e?.message || 'Falha ao excluir instância'
+                            setLastError(msg)
+                            toast.error(msg, { id: toastId })
                           }
-                          try { window.dispatchEvent(new CustomEvent('dashboard:refresh')) } catch {}
-                          setOpen(false)
-                          toast.success('Instância excluída', { id: toastId })
-                        } catch (e: any) {
-                          const msg = e?.message || 'Falha ao excluir instância'
-                          setLastError(msg)
-                          toast.error(msg, { id: toastId })
-                        }
-                      }}
-                    >
-                      {!canDelete && <Lock className="h-4 w-4 mr-2" />}
-                      Deletar Instância
-                    </Button>
-                  </div>
+                        }}
+                      >
+                        {!canDelete && <Lock className="h-4 w-4 mr-2" />}
+                        Deletar Instância
+                      </Button>
+                    </div>
                   </div>
                 </form>
               </div>

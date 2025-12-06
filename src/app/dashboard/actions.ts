@@ -206,6 +206,31 @@ export async function connectAndGetQrAction(prevState: ConnectQrState, formData?
     return { success: false, error: 'Token não encontrado para esta instância' }
   }
 
+  const { data: userRes } = await supabase.auth.getUser()
+  const user = userRes?.user
+  if (!user) {
+    return { success: false, error: 'Usuário não autenticado' }
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  const { data: instanceData } = await supabase
+    .from('instances')
+    .select('user_id')
+    .eq('id', instanceId)
+    .single()
+
+  const isAdmin = profile?.role === 'admin'
+  const isOwner = instanceData?.user_id === user.id
+
+  if (!isAdmin && !isOwner) {
+    return { success: false, error: 'Você não tem permissão para gerar QR Code para esta instância.' }
+  }
+
   const token = String(tokenRes.token)
 
   try {
@@ -314,32 +339,46 @@ export async function checkInstanceStatusAction(instanceId: string): Promise<{ s
   return { success: true, status }
 }
 
-export async function disconnectInstanceAction(instanceId: string, csrfToken?: string): Promise<{ success: boolean }> {
+export async function disconnectInstanceAction(instanceId: string, csrfToken?: string): Promise<{ success: boolean; error?: string }> {
   const c = cookies().get('csrf_token')?.value
   if (!c || !csrfToken || c !== csrfToken) {
-    return { success: false }
+    return { success: false, error: 'CSRF inválido' }
   }
   const supabase = createClient()
-  const { data: tokenRes } = await supabase
-    .from('instances')
-    .select('token')
-    .eq('id', instanceId)
-    .single()
 
-  const token = String(tokenRes?.token ?? '')
+  const { data: userRes } = await supabase.auth.getUser()
+  const user = userRes?.user
+  if (!user) {
+    return { success: false, error: 'Usuário não autenticado' }
+  }
+
+  const [tokenRes, profileRes, instanceRes] = await Promise.all([
+    supabase.from('instances').select('token').eq('id', instanceId).single(),
+    supabase.from('profiles').select('role').eq('id', user.id).single(),
+    supabase.from('instances').select('user_id').eq('id', instanceId).single()
+  ])
+
+  const token = String(tokenRes.data?.token ?? '')
+  const isAdmin = profileRes.data?.role === 'admin'
+  const isOwner = instanceRes.data?.user_id === user.id
+
+  if (!isAdmin && !isOwner) {
+    return { success: false, error: 'Você não tem permissão para desconectar esta instância.' }
+  }
+
   try {
     await fetch('https://manager.dinastiapi.evolutta.com.br/session/disconnect', {
       method: 'POST',
       headers: { token },
     })
-  } catch {}
+  } catch { }
   await supabase.from('instances').update({ status: 'disconnected' }).eq('id', instanceId)
   return { success: true }
 }
 
 export async function deleteInstanceAction(instanceUUID: string, csrfToken?: string): Promise<{ success: boolean; error?: string }> {
   const c = cookies().get('csrf_token')?.value
-  
+
   if (!c || !csrfToken || c !== csrfToken) {
     return { success: false, error: 'CSRF inválido' }
   }
@@ -381,9 +420,9 @@ export async function deleteInstanceAction(instanceUUID: string, csrfToken?: str
   }
 
   const externalId = String(inst.instance_id)
-  
+
   const adminKey = process.env.DINASTI_API_KEY
-  
+
   if (!adminKey) {
     return { success: false, error: 'Chave administrativa ausente. Configure DINASTI_API_KEY em .env ou .env.local' }
   }
